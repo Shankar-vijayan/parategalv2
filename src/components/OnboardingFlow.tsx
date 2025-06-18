@@ -111,7 +111,9 @@ const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
       </div>
 
       <div className="w-full max-w-md relative z-10">
-        <Card className="animate-fade-in border-0 bg-black/40 backdrop-blur-xl shadow-2xl ring-1 ring-gold-500/20 max-h-[calc(100vh-2rem)] overflow-y-auto"> {/* ADDED: max-h-[calc(100vh-2rem)] overflow-y-auto */}
+        <Card className="animate-fade-in border-0 bg-black/40 backdrop-blur-xl shadow-2xl ring-1 ring-gold-500/20 max-h-[calc(100vh-2rem)] overflow-y-auto">
+          {" "}
+          {/* ADDED: max-h-[calc(100vh-2rem)] overflow-y-auto */}
           <CardHeader className="text-center pb-8 bg-gradient-to-b from-gold-900/30 to-purple-900/30 rounded-t-lg border-b border-gold-500/20">
             <div className="w-24 h-24 mx-auto mb-6 bg-gradient-to-br from-gold-400 via-yellow-500 to-gold-600 rounded-full flex items-center justify-center shadow-2xl ring-4 ring-gold-400/30">
               <Crown className="w-12 h-12 text-black" />
@@ -130,7 +132,6 @@ const OnboardingFlow = ({ onComplete }: OnboardingFlowProps) => {
               <Diamond className="w-4 h-4 text-gold-400" />
             </div>
           </CardHeader>
-
           <CardContent className="space-y-8 p-8">
             {selectedProfile && (
               <div className="space-y-4">

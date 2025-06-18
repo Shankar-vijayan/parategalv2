@@ -205,7 +205,9 @@ const ChatMessage = ({ message, onReply }: ChatMessageProps) => {
                 message.content !== `Shared a video.` &&
                 message.content !== `Shared a audio.` &&
                 message.content !== `Shared a document.`)) && (
-              <p className="text-sm leading-relaxed whitespace-pre-wrap overflow-x-auto"> {/* Added overflow-x-auto */}
+              <p className="text-sm leading-relaxed whitespace-pre-wrap overflow-x-auto">
+                {" "}
+                {/* Added overflow-x-auto */}
                 {renderMessageContent(message.content)}
               </p>
             )}

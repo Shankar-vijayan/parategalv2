@@ -28,7 +28,7 @@ import { supabase } from "@/supabaseClient";
 
 import data from "@emoji-mart/data";
 import Picker from "@emoji-mart/react";
-import { useBrowserNotifications } from "@/hooks/useBrowserNotifications";
+import { useBrowserNotifications } from "@/hooks/useBrowserNotifications"; // Ensure this path is correct
 
 interface User {
   username: string;
@@ -78,6 +78,7 @@ const ChatRoom = ({ user }: ChatRoomProps) => {
   );
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageRefs = useRef(new Map<string, HTMLDivElement>());
+  // Destructure `permission` here to use it in logs
   const { permission, requestPermission, sendNotification } =
     useBrowserNotifications();
 
@@ -216,11 +217,32 @@ const ChatRoom = ({ user }: ChatRoomProps) => {
         (payload) => {
           const newMsgFromDb = payload.new as RawMessage;
 
+          // --- START ADDED CONSOLE LOGS FOR NOTIFICATION DEBUGGING ---
+          console.log("--- New message event received ---");
+          console.log("Event Type:", payload.eventType);
+          console.log("Sender:", newMsgFromDb.sender);
+          console.log("Your Username:", user.username);
+          console.log(
+            "Is sender different?",
+            newMsgFromDb.sender !== user.username
+          );
+          console.log("Is document hidden (tab inactive)?", document.hidden);
+          console.log("Current browser notification permission:", permission); // Log the permission state from the hook
+          // --- END ADDED CONSOLE LOGS ---
+
           if (
             payload.eventType === "INSERT" &&
             newMsgFromDb.sender !== user.username &&
-            document.hidden
+            document.hidden // This condition is crucial!
           ) {
+            // --- START CONSOLE LOG FOR SUCCESSFUL NOTIFICATION CONDITIONS ---
+            console.log("✅ All conditions met to attempt notification!");
+            console.log(
+              "Attempting to play sound and send notification for message:",
+              newMsgFromDb.message
+            );
+            // --- END CONSOLE LOG ---
+
             new Audio("/notification.mp3")
               .play()
               .catch((e) => console.error("Error playing sound:", e));
@@ -229,6 +251,18 @@ const ChatRoom = ({ user }: ChatRoomProps) => {
               icon: getAvatarUrl(newMsgFromDb.sender),
               tag: "new-message",
             });
+          } else {
+            // --- START CONSOLE LOG FOR FAILED NOTIFICATION CONDITIONS ---
+            console.log(
+              "❌ Notification conditions NOT met. Not sending notification."
+            );
+            if (payload.eventType !== "INSERT")
+              console.log("   - Reason: Event type is not INSERT.");
+            if (newMsgFromDb.sender === user.username)
+              console.log("   - Reason: Message is from yourself.");
+            if (!document.hidden)
+              console.log("   - Reason: Document is visible (tab is active).");
+            // --- END CONSOLE LOG ---
           }
 
           setMessages((prevMessages) => {
@@ -308,6 +342,7 @@ const ChatRoom = ({ user }: ChatRoomProps) => {
     processAndLinkMessages,
     scrollToBottom,
     sendNotification,
+    permission, // Add permission to this useEffect's dependency array so its value is fresh in the callback
   ]);
 
   useEffect(() => {
