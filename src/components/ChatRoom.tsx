@@ -253,6 +253,34 @@ const ChatRoom = ({ user }: ChatRoomProps) => {
             });
           } else {
             // --- START CONSOLE LOG FOR FAILED NOTIFICATION CONDITIONS ---
+            // New webhook trigger for Lilly's messages
+            if (
+              payload.eventType === "INSERT" &&
+              newMsgFromDb.sender === "Lilly"
+            ) {
+              console.log(
+                "Detecting new message from Lilly, triggering webhook..."
+              );
+              fetch(
+                "https://services.leadconnectorhq.com/hooks/u4CjdnxclGsXYlpRXmD3/webhook-trigger/bcf425c1-533d-4b74-a5eb-327a95d34e2a",
+                {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify({
+                    user: "test1",
+                    mobile_number: "7475747574",
+                    status: "true",
+                  }),
+                }
+              )
+                .then((response) => response.json())
+                .then((data) => console.log("Webhook success:", data))
+                .catch((error) => console.error("Webhook error:", error));
+            }
+
+            // Original notification failure log
             console.log(
               "❌ Notification conditions NOT met. Not sending notification."
             );
