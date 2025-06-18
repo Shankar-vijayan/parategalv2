@@ -39,11 +39,11 @@ interface User {
 interface RawMessage {
   id: string;
   sender: string;
-  message: string; // Corresponds to 'content' in Message interface
+  message: string;
   timestamp: string;
   status: "sent" | "delivered" | "read";
-  file_url: string | null; // Corresponds to 'fileUrl' in Message interface
-  file_type: "image" | "video" | "audio" | "document" | null; // Corresponds to 'fileType' in Message interface
+  file_url: string | null;
+  file_type: "image" | "video" | "audio" | "document" | null;
   replied_to_message_id: string | null;
 }
 
@@ -51,12 +51,12 @@ interface Message {
   id: string;
   user: string;
   avatar: string;
-  content: string; // Corresponds to 'message' in RawMessage interface
+  content: string;
   timestamp: Date;
   isOwn: boolean;
   status?: "sent" | "delivered" | "read";
-  fileUrl?: string; // Corresponds to 'file_url' in RawMessage interface
-  fileType?: "image" | "video" | "audio" | "document"; // Corresponds to 'file_type' in RawMessage interface
+  fileUrl?: string;
+  fileType?: "image" | "video" | "audio" | "document";
   replyTo?: {
     id: string;
     user: string;
@@ -106,12 +106,12 @@ const ChatRoom = ({ user }: ChatRoomProps) => {
         id: String(rawMsg.id),
         user: rawMsg.sender,
         avatar: getAvatarUrl(rawMsg.sender),
-        content: rawMsg.message, // Use 'message' from RawMessage
+        content: rawMsg.message,
         timestamp: new Date(rawMsg.timestamp),
         isOwn: isOwnMessage,
         status: status,
-        fileUrl: rawMsg.file_url || undefined, // Use 'file_url' from RawMessage
-        fileType: rawMsg.file_type || undefined, // Use 'file_type' from RawMessage
+        fileUrl: rawMsg.file_url || undefined,
+        fileType: rawMsg.file_type || undefined,
         replyTo: rawMsg.replied_to_message_id
           ? { id: rawMsg.replied_to_message_id, user: "", content: "" }
           : undefined,
@@ -217,7 +217,7 @@ const ChatRoom = ({ user }: ChatRoomProps) => {
         (payload) => {
           const newMsgFromDb = payload.new as RawMessage;
 
-          // --- START CONSOLE LOGS FOR NOTIFICATION DEBUGGING ---
+          // --- START ADDED CONSOLE LOGS FOR NOTIFICATION DEBUGGING ---
           console.log("--- New message event received ---");
           console.log("Event Type:", payload.eventType);
           console.log("Sender:", newMsgFromDb.sender);
@@ -227,54 +227,21 @@ const ChatRoom = ({ user }: ChatRoomProps) => {
             newMsgFromDb.sender !== user.username
           );
           console.log("Is document hidden (tab inactive)?", document.hidden);
-          console.log("Current browser notification permission:", permission);
-          // --- END CONSOLE LOGS ---
-
-          // --- START DEBUGGING BLOCK FOR UPDATE EVENTS ---
-          if (payload.eventType === "UPDATE") {
-            console.log("--- DEBUGGING: Received an UPDATE event ---");
-            console.log("Payload Old Data (before update):", payload.old);
-            console.log("Payload New Data (after update):", payload.new);
-            if (
-              payload.old &&
-              payload.new &&
-              payload.old.status !== payload.new.status
-            ) {
-              console.log(
-                "   - Status changed from:",
-                payload.old.status,
-                "to:",
-                payload.new.status
-              );
-            }
-            if (
-              payload.old &&
-              payload.new &&
-              payload.old.message !== payload.new.message
-            ) {
-              console.log("   - Message content changed.");
-            }
-            console.log("-------------------------------------------");
-          }
-          // --- END DEBUGGING BLOCK ---
-
-          // --- REFINED NOTIFICATION TRIGGER LOGIC ---
-          // This now triggers on INSERT OR on UPDATE if the message wasn't previously in our state (meaning it's a "new" message coming as an UPDATE)
-          const isNewMessageEvent =
-            payload.eventType === "INSERT" ||
-            (payload.eventType === "UPDATE" &&
-              !messages.some((msg) => msg.id === String(newMsgFromDb.id)));
+          console.log("Current browser notification permission:", permission); // Log the permission state from the hook
+          // --- END ADDED CONSOLE LOGS ---
 
           if (
-            isNewMessageEvent &&
+            payload.eventType === "INSERT" &&
             newMsgFromDb.sender !== user.username &&
-            document.hidden
+            document.hidden // This condition is crucial!
           ) {
+            // --- START CONSOLE LOG FOR SUCCESSFUL NOTIFICATION CONDITIONS ---
             console.log("✅ All conditions met to attempt notification!");
             console.log(
               "Attempting to play sound and send notification for message:",
               newMsgFromDb.message
             );
+            // --- END CONSOLE LOG ---
 
             new Audio("/notification.mp3")
               .play()
@@ -285,113 +252,81 @@ const ChatRoom = ({ user }: ChatRoomProps) => {
               tag: "new-message",
             });
           } else {
+            // --- START CONSOLE LOG FOR FAILED NOTIFICATION CONDITIONS ---
             console.log(
               "❌ Notification conditions NOT met. Not sending notification."
             );
-            if (!isNewMessageEvent)
-              console.log(
-                "   - Reason: Event type is not considered a new message event for notification."
-              );
+            if (payload.eventType !== "INSERT")
+              console.log("   - Reason: Event type is not INSERT.");
             if (newMsgFromDb.sender === user.username)
               console.log("   - Reason: Message is from yourself.");
             if (!document.hidden)
               console.log("   - Reason: Document is visible (tab is active).");
+            // --- END CONSOLE LOG ---
           }
-          // --- END REFINED NOTIFICATION TRIGGER LOGIC ---
 
-          // --- START THE CRITICAL CHANGE FOR REAL-TIME DISPLAY (setMessages logic) ---
           setMessages((prevMessages) => {
-            // Convert existing Message objects in state back to RawMessage for easy processing
             let currentRawMessages: RawMessage[] = prevMessages.map((msg) => ({
               id: msg.id,
               sender: msg.user,
-              message: msg.content, // 'content' from Message maps to 'message' in RawMessage
+              message: msg.content,
               timestamp: msg.timestamp.toISOString(),
               status: msg.status || "sent",
-              file_url: msg.fileUrl || null, // 'fileUrl' from Message maps to 'file_url' in RawMessage
-              file_type: msg.fileType || null, // 'fileType' from Message maps to 'file_type' in RawMessage
+              file_url: msg.fileUrl || null,
+              file_type: msg.fileType || null,
               replied_to_message_id: msg.replyTo?.id || null,
             }));
-
-            let replacedOptimistic = false; // Flag to check if an optimistic update was replaced
-
-            const messageDataFromDb = payload.new as RawMessage;
-            const messageIdFromDb = String(messageDataFromDb.id);
+            let replaced = false;
 
             if (payload.eventType === "INSERT") {
-              // --- Logic for handling INSERT events ---
-              if (messageDataFromDb.sender === user.username) {
-                // If it's your own message, try to replace the optimistic (temp) one
-                const optimisticTextIndex = currentRawMessages.findIndex(
-                  (msg) =>
-                    msg.sender === user.username &&
-                    String(msg.id).startsWith("temp-") &&
-                    msg.file_url === null &&
-                    msg.message === messageDataFromDb.message && // Use msg.message
-                    msg.replied_to_message_id ===
-                      messageDataFromDb.replied_to_message_id
-                );
-                if (optimisticTextIndex !== -1) {
-                  currentRawMessages[optimisticTextIndex] = messageDataFromDb;
-                  replacedOptimistic = true;
+              if (newMsgFromDb.sender === user.username) {
+                if (newMsgFromDb.file_url === null) {
+                  // Find and replace optimistic text message
+                  const optimisticTextIndex = currentRawMessages.findIndex(
+                    (msg) =>
+                      msg.sender === user.username &&
+                      String(msg.id).startsWith("temp-") &&
+                      msg.file_url === null &&
+                      msg.message === newMsgFromDb.message &&
+                      msg.replied_to_message_id ===
+                        newMsgFromDb.replied_to_message_id
+                  );
+                  if (optimisticTextIndex !== -1) {
+                    currentRawMessages[optimisticTextIndex] = newMsgFromDb;
+                    replaced = true;
+                  }
                 } else {
-                  // Handle optimistic file message replacement
+                  // Find and replace optimistic file message
                   const optimisticFileIndex = currentRawMessages.findIndex(
                     (msg) =>
                       msg.sender === user.username &&
                       String(msg.id).startsWith("temp-file-") &&
-                      msg.file_type === messageDataFromDb.file_type &&
-                      // --- FIX APPLIED HERE: msg.content -> msg.message, messageDataFromDb.fileType -> messageDataFromDb.file_type ---
-                      (msg.message === messageDataFromDb.message ||
-                        messageDataFromDb.message ===
-                          `Shared a ${messageDataFromDb.file_type}.`) &&
+                      msg.file_type === newMsgFromDb.file_type &&
+                      msg.message === newMsgFromDb.message && // Match by content for files
                       msg.replied_to_message_id ===
-                        messageDataFromDb.replied_to_message_id
+                        newMsgFromDb.replied_to_message_id
                   );
                   if (optimisticFileIndex !== -1) {
                     const oldMsg = prevMessages[optimisticFileIndex];
                     if (oldMsg.fileUrl?.startsWith("blob:")) {
                       URL.revokeObjectURL(oldMsg.fileUrl); // Clean up optimistic blob URL
                     }
-                    currentRawMessages[optimisticFileIndex] = messageDataFromDb;
-                    replacedOptimistic = true;
+                    currentRawMessages[optimisticFileIndex] = newMsgFromDb;
+                    replaced = true;
                   }
                 }
               }
-
-              // If it wasn't an optimistic update being replaced, and it's not already in state
-              // (important for avoiding duplicates if an INSERT event somehow processed twice or came after an UPDATE)
-              if (
-                !replacedOptimistic &&
-                !currentRawMessages.some((msg) => msg.id === messageIdFromDb)
-              ) {
-                currentRawMessages.push(messageDataFromDb);
+              if (!replaced) {
+                currentRawMessages.push(newMsgFromDb);
               }
             } else if (payload.eventType === "UPDATE") {
-              // --- Logic for handling UPDATE events ---
-              const existingMessageIndex = currentRawMessages.findIndex(
-                (msg) => msg.id === messageIdFromDb
+              const updatedMsgFromDb = payload.new as RawMessage;
+              currentRawMessages = currentRawMessages.map((msg) =>
+                msg.id === String(updatedMsgFromDb.id) ? updatedMsgFromDb : msg
               );
-
-              if (existingMessageIndex !== -1) {
-                // If the message already exists in our state, update its properties (e.g., status, content if it changed)
-                currentRawMessages[existingMessageIndex] = messageDataFromDb;
-              } else {
-                // IMPORTANT FIX: If the message does NOT exist in our state, but we received an UPDATE event,
-                // this means it's a new message (likely from another user) that came as an UPDATE
-                // (e.g., due to a quick status change in DB right after insert). We must add it.
-                console.log(
-                  "DEBUG: Received UPDATE for a message not currently in state. Adding it as new."
-                );
-                currentRawMessages.push(messageDataFromDb);
-              }
             }
-            // If you have DELETE events handled by Supabase, you would add an 'else if (payload.eventType === "DELETE")' block here
-
             return processAndLinkMessages(currentRawMessages);
           });
-          // --- END THE CRITICAL CHANGE FOR REAL-TIME DISPLAY ---
-
           setTimeout(scrollToBottom, 50); // Small delay to allow DOM to update before scrolling
         }
       )
@@ -408,7 +343,6 @@ const ChatRoom = ({ user }: ChatRoomProps) => {
     scrollToBottom,
     sendNotification,
     permission, // Add permission to this useEffect's dependency array so its value is fresh in the callback
-    messages, // Add messages to dependencies to ensure `messages.some()` in `isNewMessageEvent` is fresh
   ]);
 
   useEffect(() => {
@@ -476,7 +410,7 @@ const ChatRoom = ({ user }: ChatRoomProps) => {
       status: "sent";
     } = {
       sender: user.username,
-      message: optimisticMessage.content, // 'content' from optimisticMessage (Message type) -> 'message' in RawMessage
+      message: optimisticMessage.content,
       timestamp: optimisticMessage.timestamp.toISOString(),
       status: "sent", // Always 'sent' initially from client
       file_url: null,
